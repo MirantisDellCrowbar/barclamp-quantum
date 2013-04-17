@@ -216,5 +216,6 @@ template "/etc/quantum/quantum.conf" do
       :rootwrap_bin =>  node[:quantum][:rootwrap]
     )
     notifies :restart, resources(:service => quantum_agent), :immediately
+    notifies :restart, resources(:service => "openvswitch-switch"), :immediately
 end
 
