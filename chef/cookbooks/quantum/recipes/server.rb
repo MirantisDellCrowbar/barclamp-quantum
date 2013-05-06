@@ -89,16 +89,47 @@ directory "/etc/quantum/plugins/openvswitch/" do
    recursive true
 end
 
+service "quantum-dhcp-agent" do
+  supports :status => true, :restart => true
+  action :enable
+  subscribes :restart, resources("template[/etc/quantum/quantum.conf]")
+end
+
+service "quantum-l3-agent" do
+  supports :status => true, :restart => true
+  action :enable
+  subscribes :restart, resources("template[/etc/quantum/quantum.conf]")
+end
+
+
 unless node[:quantum][:use_gitrepo]
-  link "/etc/quantum/plugins/openvswitch/ovs_quantum_plugin.ini" do
-    to "/etc/quantum/quantum.conf"
-  end
   service quantum_service_name do
     supports :status => true, :restart => true
     action :enable
     subscribes :restart, resources("template[/etc/quantum/api-paste.ini]"), :immediately
     subscribes :restart, resources("link[/etc/quantum/plugins/openvswitch/ovs_quantum_plugin.ini]"), :immediately
     subscribes :restart, resources("template[/etc/quantum/quantum.conf]")
+  end
+  service "quantum-metadata-agent" do
+    supports :status => true, :restart => true
+    action :enable
+    subscribes :restart, resources("template[/etc/quantum/quantum.conf]")
+  end
+  link "/etc/quantum/plugins/openvswitch/ovs_quantum_plugin.ini" do
+    to "/etc/quantum/quantum.conf"
+      notifies :restart, "service[#{quantum_service_name}]"
+      notifies :restart, "service[quantum-l3-agent]"
+      notifies :restart, "service[quantum-dhcp-agent]"
+      notifies :restart, "service[quantum-metadata-agent]"
+  end
+  ['dhcp_agent.ini', 'l3_agent.ini', 'metadata_agent.ini'].each do |cfg|
+    link "/etc/quantum/#{cfg}"
+      to "/etc/quantum/quantum.conf"
+      notifies :restart, "service[#{quantum_service_name}]"
+      notifies :restart, "service[quantum-l3-agent]"
+      notifies :restart, "service[quantum-dhcp-agent]"
+      notifies :restart, "service[quantum-metadata-agent]"
+    end
   end
 else
   template "/etc/quantum/plugins/openvswitch/ovs_quantum_plugin.ini" do
@@ -119,17 +150,6 @@ else
   end
 end
 
-service "quantum-dhcp-agent" do
-  supports :status => true, :restart => true
-  action :enable
-  subscribes :restart, resources("template[/etc/quantum/quantum.conf]")
-end
-
-service "quantum-l3-agent" do
-  supports :status => true, :restart => true
-  action :enable
-  subscribes :restart, resources("template[/etc/quantum/quantum.conf]")
-end
 
 
 include_recipe "quantum::post_install_conf"
