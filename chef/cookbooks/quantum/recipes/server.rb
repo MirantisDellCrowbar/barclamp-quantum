@@ -123,7 +123,7 @@ unless node[:quantum][:use_gitrepo]
       notifies :restart, "service[quantum-metadata-agent]"
   end
   ['dhcp_agent.ini', 'l3_agent.ini', 'metadata_agent.ini'].each do |cfg|
-    link "/etc/quantum/#{cfg}"
+    link "/etc/quantum/#{cfg}" do
       to "/etc/quantum/quantum.conf"
       notifies :restart, "service[#{quantum_service_name}]"
       notifies :restart, "service[quantum-l3-agent]"
