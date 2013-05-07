@@ -17,8 +17,8 @@ include_recipe "quantum::database"
 include_recipe "quantum::api_register"
 include_recipe "quantum::common_install"
 
+quantum_service_name="quantum-server"
 unless node[:quantum][:use_gitrepo]
-  quantum_service_name="quantum-server"
   pkgs = [ "quantum-server",
            "quantum-l3-agent",
            "quantum-dhcp-agent",
@@ -29,12 +29,10 @@ unless node[:quantum][:use_gitrepo]
     notifies :restart, "service[#{quantum_service_name}]"
   end
 else
-  quantum_service_name="quantum-server"
   quantum_path = "/opt/quantum"
   venv_path = node[:quantum][:use_virtualenv] ? "#{quantum_path}/.venv" : nil
-  venv_prefix = node[:quantum][:use_virtualenv] ? ". #{venv_path}/bin/activate &&" : nil
 
-  link_service "quantum" do
+  link_service "quantum-server" do
     virtualenv venv_path
     bin_name "quantum-server --config-dir /etc/quantum/"
   end
