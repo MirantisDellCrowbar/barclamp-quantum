@@ -6,7 +6,7 @@
       "service_user": "quantum",
       "gitrepo": "http://github.com/openstack/quantum.git",
       "git_instance": "",
-      "git_refspec": "stable/grizzly",
+      "git_refspec": "2013.2.b2",
       "use_gitbarclamp": false,
       "use_pip_cache": false,
       "use_gitrepo": false,
