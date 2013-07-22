@@ -77,4 +77,4 @@ debs:
     - quantum-server
 
 git_repo:
-  - quantum https://github.com/openstack/quantum.git stable/grizzly
+  - quantum https://github.com/openstack/quantum.git 2013.2.b2
