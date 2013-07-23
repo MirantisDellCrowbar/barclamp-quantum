@@ -3,8 +3,8 @@
   "description": "API-enabled, pluggable virtual network service for OpenStack",
   "attributes": {
     "quantum": {
-      "service_user": "quantum",
-      "gitrepo": "http://github.com/openstack/quantum.git",
+      "service_user": "neutron",
+      "gitrepo": "http://github.com/openstack/neutron.git",
       "git_instance": "",
       "git_refspec": "2013.2.b2",
       "use_gitbarclamp": false,
@@ -27,7 +27,7 @@
         "python-iso8601",
         "python-webob",
         "pip://python-keystoneclient",
-        "pip://python-quantumclient",
+        "pip://python-neutronclient",
         "pip://python-novaclient",
         "pip://alembic>=0.4.1",
         "pip://pyudev"
@@ -40,8 +40,8 @@
       "use_syslog": false,
       "database_instance": "none",
       "db": {
-        "database": "quantum",
-        "user": "quantum",
+        "database": "neutron",
+        "user": "neutron",
         "ovs_database": "ovs",
         "ovs_user": "ovs"
       },
@@ -53,10 +53,10 @@
       },
       "ssl": {
         "insecure": false,
-        "certfile": "/etc/quantum/ssl/certs/signing_cert.pem",
-        "keyfile": "/etc/quantum/ssl/private/signing_key.pem",
+        "certfile": "/etc/neutron/ssl/certs/signing_cert.pem",
+        "keyfile": "/etc/neutron/ssl/private/signing_key.pem",
         "cert_required": false,
-        "ca_certs": "/etc/quantum/ssl/certs/ca.pem"
+        "ca_certs": "/etc/neutron/ssl/certs/ca.pem"
       },
       "api": {
         "protocol": "http",

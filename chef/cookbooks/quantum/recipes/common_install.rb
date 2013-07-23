@@ -28,7 +28,7 @@ when "linuxbridge"
   quantum_agent = node[:quantum][:platform][:lb_agent_name]
 end
 
-quantum_path = "/opt/quantum"
+quantum_path = "/opt/neutron"
 venv_path = quantum[:quantum][:use_virtualenv] ? "#{quantum_path}/.venv" : nil
 
 quantum_server = node[:quantum][:quantum_server] rescue false
@@ -56,13 +56,13 @@ unless quantum[:quantum][:use_gitrepo]
     action :install
   end
 else
-  quantum_agent = "quantum-openvswitch-agent"
-  pfs_and_install_deps "quantum" do
+  quantum_agent = "neutron-openvswitch-agent"
+  pfs_and_install_deps "neutron" do
     cookbook "quantum"
     cnode quantum
     virtualenv venv_path
     path quantum_path
-    wrap_bins [ "quantum", "quantum-rootwrap" ]
+    wrap_bins [ "neutron", "neutron-rootwrap" ]
   end
   pfs_and_install_deps "keystone" do
     cookbook "keystone"
@@ -71,22 +71,22 @@ else
     virtualenv venv_path
   end
 
-  create_user_and_dirs("quantum")
+  create_user_and_dirs("neutron")
 
   link_service quantum_agent do
     virtualenv venv_path
-    bin_name "quantum-openvswitch-agent --config-dir /etc/quantum/"
+    bin_name "neutron-openvswitch-agent --config-dir /etc/neutron/"
   end
 
   execute "quantum_cp_policy.json" do
-    command "cp /opt/quantum/etc/policy.json /etc/quantum/"
-    creates "/etc/quantum/policy.json"
+    command "cp /opt/neutron/etc/policy.json /etc/neutron/"
+    creates "/etc/neutron/policy.json"
   end
   execute "quantum_cp_rootwrap" do
-    command "cp -r /opt/quantum/etc/quantum/rootwrap.d /etc/quantum/rootwrap.d"
-    creates "/etc/quantum/rootwrap.d"
+    command "cp -r /opt/neutron/etc/neutron/rootwrap.d /etc/neutron/rootwrap.d"
+    creates "/etc/neutron/rootwrap.d"
   end
-  cookbook_file "/etc/quantum/rootwrap.conf" do
+  cookbook_file "/etc/neutron/rootwrap.conf" do
     cookbook "quantum"
     source "quantum-rootwrap.conf"
     mode 00644
@@ -97,9 +97,9 @@ end
 node[:quantum] ||= Mash.new
 if not node[:quantum].has_key?("rootwrap")
   unless quantum[:quantum][:use_gitrepo]
-    node.set[:quantum][:rootwrap] = "/usr/bin/quantum-rootwrap"
+    node.set[:quantum][:rootwrap] = "/usr/bin/neutron-rootwrap"
   else
-    node.set[:quantum][:rootwrap] = "/usr/local/bin/quantum-rootwrap"
+    node.set[:quantum][:rootwrap] = "/usr/local/bin/neutron-rootwrap"
   end
 end
 
@@ -108,18 +108,18 @@ ruby_block "Find quantum rootwrap" do
   block do
     found = false
     ENV['PATH'].split(':').each do |p|
-      f = File.join(p,"quantum-rootwrap")
+      f = File.join(p,"neutron-rootwrap")
       next unless File.executable?(f)
       node.set[:quantum][:rootwrap] = f
       node.save
       found = true
       break
     end
-    raise("Could not find quantum rootwrap binary!") unless found
+    raise("Could not find neutron rootwrap binary!") unless found
   end
 end
 
-template "/etc/sudoers.d/quantum-rootwrap" do
+template "/etc/sudoers.d/neutron-rootwrap" do
   cookbook "quantum"
   source "quantum-rootwrap.erb"
   mode 0440
@@ -130,9 +130,9 @@ end
 
 case quantum[:quantum][:networking_plugin]
 when "openvswitch"
-  plugin_cfg_path = "/etc/quantum/plugins/openvswitch/ovs_quantum_plugin.ini"
+  plugin_cfg_path = "/etc/neutron/plugins/openvswitch/ovs_neutron_plugin.ini"
   physnet = quantum[:quantum][:networking_mode] == 'gre' ? "br-tunnel" : "br-fixed"
-  interface_driver = "quantum.agent.linux.interface.OVSInterfaceDriver"
+  interface_driver = "neutron.agent.linux.interface.OVSInterfaceDriver"
   external_network_bridge = "br-public"
 
   service "openvswitch-switch" do
@@ -166,12 +166,12 @@ when "openvswitch"
     bound_if = (node[:crowbar_wall][:network][:nets][net[0]].last rescue nil)
     next unless bound_if
     name = "br-#{net[1]}"
-    execute "Quantum: create #{name}" do
+    execute "neutron: create #{name}" do
       command "ovs-vsctl add-br #{name}; ip link set #{name} up"
       not_if "ovs-vsctl list-br |grep -q #{name}"
     end
     next if net[1] == "tunnel"
-    execute "Quantum: add #{bound_if} to #{name}" do
+    execute "neutron: add #{bound_if} to #{name}" do
       command "ovs-vsctl del-port #{name} #{bound_if} ; ovs-vsctl add-port #{name} #{bound_if}"
       not_if "ovs-dpctl show system@#{name} | grep -q #{bound_if}"
     end
@@ -185,9 +185,9 @@ when "openvswitch"
     end
   end
 when "linuxbridge"
-  plugin_cfg_path = "/etc/quantum/plugins/linuxbridge/linuxbridge_conf.ini"
+  plugin_cfg_path = "/etc/neutron/plugins/linuxbridge/linuxbridge_conf.ini"
   physnet = (node[:crowbar_wall][:network][:nets][:nova_fixed].first rescue nil)
-  interface_driver = "quantum.agent.linux.interface.BridgeInterfaceDriver"
+  interface_driver = "neutron.agent.linux.interface.BridgeInterfaceDriver"
   external_network_bridge = ""
 end
 
@@ -204,7 +204,7 @@ else
     supports :status => true, :restart => true
     action :enable
     subscribes :restart, resources("link[#{plugin_cfg_path}]")
-    subscribes :restart, resources("template[/etc/quantum/quantum.conf]")
+    subscribes :restart, resources("template[/etc/neutron/neutron.conf]")
   end
 end
 
@@ -260,11 +260,11 @@ vlan_start = node[:network][:networks][:nova_fixed][:vlan]
 vlan_end = vlan_start + 2000
 
 if quantum[:quantum][:use_gitrepo] == true
-  plugin_cfg_path = File.join("/opt/quantum", plugin_cfg_path)
+  plugin_cfg_path = File.join("/opt/neutron", plugin_cfg_path)
 end
 
 link plugin_cfg_path do
-  to "/etc/quantum/quantum.conf"
+  to "/etc/neutron/neutron.conf"
 end
 
 if quantum_server and quantum[:quantum][:api][:protocol] == 'https'
@@ -282,7 +282,7 @@ if quantum_server and quantum[:quantum][:api][:protocol] == 'https'
   end
 end
 
-template "/etc/quantum/quantum.conf" do
+template "/etc/neutron/neutron.conf" do
     cookbook "quantum"
     source "quantum.conf.erb"
     mode "0640"
