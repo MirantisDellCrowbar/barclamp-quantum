@@ -222,19 +222,19 @@ end
 
 service node[:quantum][:platform][:service_name] do
   supports :status => true, :restart => true
-  action (node[:quantum][:use_gitrepo] ? :start : :nothing)
+  action :start
   subscribes :restart, resources("template[/etc/quantum/quantum.conf]")
 end
 
 service node[:quantum][:platform][:dhcp_agent_name] do
   supports :status => true, :restart => true
-  action (node[:quantum][:use_gitrepo] ? :start : :nothing)
+  action :start
   subscribes :restart, resources("template[/etc/quantum/quantum.conf]"), :immediately
 end
 
 service node[:quantum][:platform][:l3_agent_name] do
   supports :status => true, :restart => true
-  action (node[:quantum][:use_gitrepo] ? :start : :nothing)
+  action :start
   subscribes :restart, resources("template[/etc/quantum/quantum.conf]"), :immediately
 end
 

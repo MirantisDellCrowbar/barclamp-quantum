@@ -136,7 +136,7 @@ when "openvswitch"
 
   service "openvswitch-switch" do
     supports :status => true, :restart => true
-    action [ :enable ]
+    action :start
   end
 
   bash "Start openvswitch-switch service" do
@@ -367,12 +367,12 @@ if quantum_server
   # but it only exists if we're also the server
   service quantum_agent do
     supports :status => true, :restart => true
-    action :enable
+    action :start
   end
 else
   service quantum_agent do
     supports :status => true, :restart => true
-    action :enable
+    action :start
     subscribes :restart, resources("link[#{plugin_cfg_path}]")
     subscribes :restart, resources("template[/etc/quantum/quantum.conf]")
   end
