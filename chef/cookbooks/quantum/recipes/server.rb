@@ -13,6 +13,8 @@
 # limitations under the License.
 #
 
+plugin_cfg_path=""
+
 unless node[:quantum][:use_gitrepo]
   case node[:quantum][:networking_plugin]
   when "openvswitch"
@@ -170,7 +172,10 @@ if novas.length > 0
 else
   nova = node
 end
-metadata_host = nova[:fqdn]
+# we use an IP address here, and not nova[:fqdn] because nova-metadata doesn't use SSL
+# and because it listens on this specific IP address only (so we don't want to use a name
+# that could resolve to 127.0.0.1).
+metadata_host = Chef::Recipe::Barclamp::Inventory.get_network_by_type(nova, "admin").address
 metadata_port = "8775"
 metadata_proxy_shared_secret = (nova[:nova][:quantum_metadata_proxy_shared_secret] rescue '')
 
@@ -216,6 +221,14 @@ when "linuxbridge"
      recursive true
      not_if { node[:platform] == "suse" }
   end
+end
+
+if node[:quantum][:use_gitrepo] == true
+  plugin_cfg_path = File.join("/opt/quantum", plugin_cfg_path)
+end
+
+link plugin_cfg_path do
+  to "/etc/quantum/quantum.conf"
 end
 
 unless node[:quantum][:use_gitrepo]
@@ -291,15 +304,44 @@ ruby_block "mark quantum-agent as restart for post-install" do
   subscribes :create, resources("template[/etc/quantum/quantum.conf]"), :immediately
 end
 
+ruby_block "mark quantum-dhcp-agent as restart for post-install" do
+  block do
+    unless services_to_restart.include?("quantum-dhcp-agent")
+      services_to_restart << "quantum-dhcp-agent"
+    end
+  end
+  action :nothing
+  subscribes :create, resources("template[/etc/quantum/dhcp_agent.ini]"), :immediately
+  subscribes :create, resources("template[/etc/quantum/quantum.conf]"), :immediately
+end
+
+ruby_block "mark quantum-l3-agent as restart for post-install" do
+  block do
+    unless services_to_restart.include?("quantum-l3-agent")
+      services_to_restart << "quantum-l3-agent"
+    end
+  end
+  action :nothing
+  subscribes :create, resources("template[/etc/quantum/quantum.conf]"), :immediately
+  subscribes :create, resources("template[/etc/quantum/l3_agent.ini]"), :immediately
+end
+
+ruby_block "mark quantum-metadata-agent as restart for post-install" do
+  block do
+    unless services_to_restart.include?("quantum-metadata-agent")
+      services_to_restart << "quantum-metadata-agent"
+    end
+  end
+  action :nothing
+  subscribes :create, resources("template[/etc/quantum/quantum.conf]"), :immediately
+  subscribes :create, resources("template[/etc/quantum/metadata_agent.ini]"), :immediately
+end
+
+
 ruby_block "restart services for post-install" do
   block do
     services_to_restart.each do |service|
-      Chef::Log.info("Restarting #{service}")
-      unless (platform?("ubuntu") && node.platform_version.to_f >= 10.04)
-        %x{/sbin/service #{service} restart}
-      else
-        %x{/sbin/restart #{service}}
-      end
+      %x{/etc/init.d/#{service} restart}
     end
   end
 end
