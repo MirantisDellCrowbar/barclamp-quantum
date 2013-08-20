@@ -4,9 +4,9 @@
   "attributes": {
     "quantum": {
       "service_user": "quantum",
-      "gitrepo": "http://github.com/openstack/quantum.git",
+      "gitrepo": "https://github.com/openstack/neutron.git",
       "git_instance": "",
-      "git_refspec": "stable/grizzly",
+      "git_refspec": "2013.2.b2",
       "use_gitbarclamp": true,
       "use_pip_cache": true,
       "use_gitrepo": false,

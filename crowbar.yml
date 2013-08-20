@@ -118,4 +118,4 @@ rpms:
     - kernel-headers
 
 git_repo:
-  - quantum https://github.com/openstack/quantum.git stable/grizzly
+  - neutron https://github.com/openstack/neutron.git 2013.2.b2
