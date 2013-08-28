@@ -76,6 +76,12 @@ debs:
     - quantum-plugin-openvswitch
     - quantum-plugin-openvswitch-agent
     - quantum-server
+    - python-zmq
+    - iproute2
 
 git_repo:
   - quantum https://github.com/openstack/quantum.git stable/grizzly
+
+extra_files:
+  - https://github.com/mellanox-openstack/mellanox-quantum-plugin/archive/stable/grizzly.zip quantum
+  - http://mirrors.us.kernel.org/ubuntu//pool/main/e/ethtool/ethtool_3.9-1_amd64.deb quantum

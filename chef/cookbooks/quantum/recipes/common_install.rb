@@ -26,6 +26,8 @@ when "openvswitch"
   quantum_agent = node[:quantum][:platform][:ovs_agent_name]
 when "linuxbridge"
   quantum_agent = node[:quantum][:platform][:lb_agent_name]
+when "mellanox"
+  quantum_agent = node[:quantum][:platform][:mlnx_agent_name]
 end
 
 quantum_path = "/opt/quantum"
@@ -68,10 +70,73 @@ if quantum[:quantum][:networking_plugin] == "openvswitch"
   end
 end
 
+if quantum[:quantum][:networking_plugin] == "mellanox"
+  # Download and unpack mellanox tarball
+
+  tarball_url = node[:quantum][:mellanox_tarball]
+  mellanox_filename = tarball_url.split('/').last
+  ethtool_url = node[:quantum][:ethtool_package]
+  ethtool_filename = tarball_url.split('/').last
+
+  remote_file tarball_url do
+    source tarball_url
+    path File.join("tmp",mellanox_filename)
+    action :create_if_missing
+  end
+
+  remote_file ethtool_url do
+    source ethtool_url
+    path File.join("tmp",ethtool_filename)
+    action :create_if_missing
+  end
+
+  package "unzip"
+
+  bash "install_ethtool" do
+    cwd "/tmp"
+    code "dpkg -i ethtool_filename"
+    not_if { ::File.exists?("/etc/quantum/plugins/mlnx/mlnx_conf.ini") } #should be fixed to check actual ethtool package
+  end  
+
+  bash "install_mellanox_agent_from_archive" do
+    cwd "/tmp"
+    code "unzip #{mellanox_filename} && cd mellanox-quantum-plugin-stable-grizzly && cp -a nova/nova/virt/libvirt/mlnx /usr/lib/python2.7/dist-packages/nova/virt/libvirt && cp -a quantum/quantum/plugins/mlnx /usr/lib/python2.7/dist-packages/quantum/plugins && cp -a daemon /opt/mlnx_daemon && cd .. && rm #{mellanox_filename}"
+    not_if { ::File.exists?("/etc/quantum/plugins/mlnx/mlnx_conf.ini") }
+  end
+
+  template "/etc/mlnx_daemon/mlnx_daemon.conf" do
+    cookbook "quantum"
+    source "mlnx_daemon.conf.erb"
+    mode "0640"
+    owner node[:quantum][:platform][:user]
+    variables(
+      :debug => quantum[:quantum][:debug],
+      :verbose => quantum[:quantum][:verbose]
+    )
+  end
+
+  template "/etc/mlnx_daemon/mlnx_conf.ini" do
+    cookbook "quantum"
+    source "mlnx_conf.ini.erb"
+    mode "0640"
+    owner node[:quantum][:platform][:user]
+    variables(
+      :sql_connection => quantum[:quantum][:db][:sql_connection]
+    )
+  end
+
+  # add restart eswitchd
+  bash "start eswitchd" do
+    code "/opt/mlnx_daemon/eswitch_daemon.py"
+    not_if "ps aux | grep eswitch_daemon"
+  end
+
+end
+
 unless quantum[:quantum][:use_gitrepo]
   package quantum_agent do
     action :install
-  end
+  end    
 else
   quantum_agent = "quantum-openvswitch-agent"
   pfs_and_install_deps "quantum" do
@@ -205,6 +270,11 @@ when "linuxbridge"
   physnet = (node[:crowbar_wall][:network][:nets][:nova_fixed].first rescue nil)
   interface_driver = "quantum.agent.linux.interface.BridgeInterfaceDriver"
   external_network_bridge = ""
+when "mellanox"
+  #plugin_cfg_path = "/etc/quantum/plugins/linuxbridge/linuxbridge_conf.ini"
+  #physnet = (node[:crowbar_wall][:network][:nets][:nova_fixed].first rescue nil)
+  #interface_driver = "quantum.agent.linux.interface.BridgeInterfaceDriver"
+  #external_network_bridge = ""
 end
 
 #env_filter = " AND nova_config_environment:nova-config-#{node[:tempest][:nova_instance]}"

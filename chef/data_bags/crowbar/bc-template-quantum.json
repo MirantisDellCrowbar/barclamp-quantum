@@ -10,6 +10,8 @@
       "use_gitbarclamp": false,
       "use_pip_cache": false,
       "use_gitrepo": false,
+      "mellanox_tarball": "http://<ADMINWEB>/files/quantum/grizzly.zip",
+      "ethtool_package": "http://<ADMINWEB>/files/quantum/ethtool_3.9-1_amd64.deb",
       "rabbitmq_instance": "none",
       "use_virtualenv": false,
       "keystone_instance": "none",
