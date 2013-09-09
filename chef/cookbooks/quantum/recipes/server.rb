@@ -68,9 +68,31 @@ else
   quantum_path = "/opt/quantum"
   venv_path = node[:quantum][:use_virtualenv] ? "#{quantum_path}/.venv" : nil
 
+  pfs_and_install_deps "quantum" do
+    cookbook "quantum"
+    cnode quantum
+    virtualenv venv_path
+    path quantum_path
+    wrap_bins [ "quantum"]
+  end
+
+  pfs_and_install_deps "keystone" do
+    cookbook "keystone"
+    cnode keystone
+    path File.join(quantum_path,".keystone")
+    virtualenv venv_path
+  end
+
   link_service "quantum-server" do
     virtualenv venv_path
     bin_name "quantum-server --config-dir /etc/quantum/"
+  end
+
+  create_user_and_dirs "quantum"
+
+  execute "quantum_cp_policy.json" do
+    command "cp /opt/quantum/etc/policy.json /etc/quantum/"
+    creates "/etc/quantum/policy.json"
   end
 
 end
