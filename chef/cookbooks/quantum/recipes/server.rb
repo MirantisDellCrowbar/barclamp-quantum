@@ -18,6 +18,16 @@ service node[:quantum][:platform][:service] do
   action :nothing
 end
 
+# find keystone-server node
+env_filter = " AND keystone_config_environment:keystone-config-#{node[:quantum][:keystone_instance]}"
+keystones = search(:node, "recipes:keystone\\:\\:server#{env_filter}") || []
+if keystones.length > 0
+  keystone = keystones[0]
+  keystone = node if keystone.name == node.name
+else
+  keystone = node
+end
+
 # prepare plugin variable
 case node[:quantum][:networking_plugin]
 when "openvswitch"
@@ -70,7 +80,6 @@ else
 
   pfs_and_install_deps "quantum" do
     cookbook "quantum"
-    cnode quantum
     virtualenv venv_path
     path quantum_path
     wrap_bins [ "quantum"]
@@ -86,7 +95,7 @@ else
   link_service "quantum-server" do
     virtualenv venv_path
     bin_name "quantum-server --config-dir /etc/quantum/"
-  end
+  end.run_action(:run)
 
   create_user_and_dirs "quantum"
 
@@ -99,15 +108,6 @@ end
 
 include_recipe "quantum::database"
 include_recipe "quantum::api_register"
-
-env_filter = " AND keystone_config_environment:keystone-config-#{node[:quantum][:keystone_instance]}"
-keystones = search(:node, "recipes:keystone\\:\\:server#{env_filter}") || []
-if keystones.length > 0
-  keystone = keystones[0]
-  keystone = node if keystone.name == node.name
-else
-  keystone = node
-end
 
 keystone_settings = {
   :host => keystone[:fqdn],

@@ -43,6 +43,8 @@ locale_additions:
         edit_deployment: 
           deployment: Deployment
         edit_attributes:
+          verbose: Verbose
+          debug: Debug
           database_instance: Database Instance
           rabbitmq_instance: RabbitMQ 
           keystone_instance: Keystone 
