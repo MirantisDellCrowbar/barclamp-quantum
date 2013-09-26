@@ -104,6 +104,14 @@ else
     command "cp -r /opt/quantum/etc/quantum/rootwrap.d /etc/quantum/rootwrap.d"
     creates "/etc/quantum/rootwrap.d"
   end
+  execute "quantum_cp_plugins" do
+    command "cp -r /opt/quantum/etc/quantum/plugins /etc/quantum/plugins"
+    creates "/etc/quantum/plugins"
+  end
+  execute "quantum_cp_plugins" do
+    command "cp -r /opt/quantum/etc/quantum.conf /etc/quantum/"
+    creates "/etc/quantum/quantum.conf"
+  end
   cookbook_file "/etc/quantum/rootwrap.conf" do
     cookbook "quantum"
     source "quantum-rootwrap.conf"
@@ -268,9 +276,6 @@ Chef::Log.info("Keystone server found at #{keystone_host}")
 vlan_start = node[:network][:networks][:nova_fixed][:vlan]
 vlan_end = vlan_start + 2000
 
-if quantum[:quantum][:use_gitrepo] == true
-  plugin_cfg_path = File.join("/opt/quantum", plugin_cfg_path)
-end
 
 link plugin_cfg_path do
   to "/etc/quantum/quantum.conf"
