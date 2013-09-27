@@ -82,12 +82,6 @@ else
     path quantum_path
     wrap_bins [ "quantum", "quantum-rootwrap" ]
   end
-  pfs_and_install_deps "keystone" do
-    cookbook "keystone"
-    cnode keystone
-    path File.join(quantum_path,"keystone")
-    virtualenv venv_path
-  end
 
   create_user_and_dirs("quantum")
 

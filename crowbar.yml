@@ -100,5 +100,10 @@ rpms:
     - python-quantumclient
     - python-openvswitch
 
+pips:
+  - cliff<=1.4.3
+  - cmd2<=0.6.5.1
+
+
 git_repo:
   - quantum https://github.com/openstack/quantum.git stable/grizzly
