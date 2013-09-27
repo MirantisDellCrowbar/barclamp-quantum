@@ -102,7 +102,7 @@ else
     command "cp -r /opt/quantum/etc/quantum/plugins /etc/quantum/plugins"
     creates "/etc/quantum/plugins"
   end
-  execute "quantum_cp_plugins" do
+  execute "quantum_cp_conf" do
     command "cp -r /opt/quantum/etc/quantum.conf /etc/quantum/"
     creates "/etc/quantum/quantum.conf"
   end
