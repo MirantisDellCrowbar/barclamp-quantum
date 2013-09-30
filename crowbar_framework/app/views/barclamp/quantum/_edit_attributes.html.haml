@@ -9,7 +9,7 @@
     = render_instance_selector("rabbitmq", :rabbitmq_instance, t('.rabbitmq_instance'), "rabbitmq_instance", @proposal)
     %p
       %label{ :for => :networking_plugin }= t('.networking_plugin')
-      = select_tag :networking_plugin, options_for_select([['linuxbridge', 'linuxbridge'], ['openvswitch','openvswitch']], @proposal.raw_data['attributes'][@proposal.barclamp]['networking_plugin']), :onchange => "update_value('networking_plugin', 'networking_plugin', 'string'); onPluginChange();"
+      = select_tag :networking_plugin, options_for_select([['linuxbridge', 'linuxbridge'], ['openvswitch','openvswitch'], ['mellanox','mellanox']], @proposal.raw_data['attributes'][@proposal.barclamp]['networking_plugin']), :onchange => "update_value('networking_plugin', 'networking_plugin', 'string'); onPluginChange();"
     %div{ :id => 'networking_mode_div' }
       %p
         %label{ :for => :networking_mode }= t('.networking_mode')
@@ -55,7 +55,7 @@
 
   function onPluginChange() {
     networkingPlugin = $('select#networking_plugin').val();
-    if(networkingPlugin == "linuxbridge") {
+    if(networkingPlugin == "linuxbridge" || networkingPlugin == "mellanox") {
       $('div#networking_mode_div').hide();
       update_value_direct('networking_mode', 'vlan', 'string');
     } else if (networkingPlugin == "openvswitch") {

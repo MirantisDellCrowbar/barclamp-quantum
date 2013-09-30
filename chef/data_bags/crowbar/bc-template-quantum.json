@@ -10,6 +10,8 @@
       "use_gitbarclamp": false,
       "use_pip_cache": false,
       "use_gitrepo": false,
+      "ofed_tarball": "http://<ADMINWEB>/files/quantum/MLNX_OFED_LINUX-2.0-3.0.0-ubuntu12.04-x86_64.tar.gz",
+      "eswitch_tarball": "http://<ADMINWEB>/files/quantum/v0.4.zip",
       "mellanox_tarball": "http://<ADMINWEB>/files/quantum/grizzly.zip",
       "ethtool_package": "http://<ADMINWEB>/files/quantum/ethtool_3.9-1_amd64.deb",
       "rabbitmq_instance": "none",

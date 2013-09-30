@@ -21,6 +21,9 @@ unless node[:quantum][:use_gitrepo]
   when "linuxbridge"
     plugin_cfg_path = "/etc/quantum/plugins/linuxbridge/linuxbridge_conf.ini"
     quantum_agent = node[:quantum][:platform][:lb_agent_name]
+  when "mellanox"
+    plugin_cfg_path = "/etc/quantum/plugins/mlnx/mlnx_conf.ini"
+    quantum_agent = node[:quantum][:platform][:mlnx_agent_name]
   end
   pkgs = node[:quantum][:platform][:pkgs]
   pkgs.each { |p| package p }
@@ -38,6 +41,17 @@ unless node[:quantum][:use_gitrepo]
       :plugin_config_file => plugin_cfg_path
     )
     only_if { node[:platform] == "suse" }
+    notifies :restart, "service[#{node[:quantum][:platform][:service_name]}]"
+  end
+  template "/etc/default/quantum-server" do
+    source "ubuntu-quantum-quantum-server.erb"
+    owner "root"
+    group "root"
+    mode 0640
+    variables(
+      :plugin_config_file => plugin_cfg_path
+    )
+    only_if { node[:platform] == "ubuntu" }
     notifies :restart, "service[#{node[:quantum][:platform][:service_name]}]"
   end
 else
@@ -120,6 +134,8 @@ when "openvswitch"
   interface_driver = "quantum.agent.linux.interface.OVSInterfaceDriver"
 when "linuxbridge"
   interface_driver = "quantum.agent.linux.interface.BridgeInterfaceDriver"
+when "mellanox"
+  interface_driver = "quantum.agent.linux.interface.BridgeInterfaceDriver"
 end
 
 # Hardcode for now.
@@ -170,7 +186,10 @@ if novas.length > 0
 else
   nova = node
 end
-metadata_host = nova[:fqdn]
+# we use an IP address here, and not nova[:fqdn] because nova-metadata doesn't use SSL
+# and because it listens on this specific IP address only (so we don't want to use a name
+# that could resolve to 127.0.0.1).
+metadata_host = Chef::Recipe::Barclamp::Inventory.get_network_by_type(nova, "admin").address
 metadata_port = "8775"
 metadata_proxy_shared_secret = (nova[:nova][:quantum_metadata_proxy_shared_secret] rescue '')
 
@@ -210,6 +229,14 @@ when "openvswitch"
   end
 when "linuxbridge"
   directory "/etc/quantum/plugins/linuxbridge/" do
+     mode 00775
+     owner node[:quantum][:platform][:user]
+     action :create
+     recursive true
+     not_if { node[:platform] == "suse" }
+  end
+when "mellanox"
+  directory "/etc/quantum/plugins/mlnx/" do
      mode 00775
      owner node[:quantum][:platform][:user]
      action :create
@@ -260,6 +287,10 @@ service node[:quantum][:platform][:l3_agent_name] do
   subscribes :restart, resources("template[/etc/quantum/l3_agent.ini]")
 end
 
+#link plugin_cfg_path do
+#  to "/etc/quantum/quantum.conf"
+#end
+
 # This is some bad hack: we need to restart the server and the agent before
 # post_install_conf if there was a configuration change. We cannot use
 # :immediately to directly restart the services earlier, because they would be
@@ -276,7 +307,7 @@ ruby_block "mark quantum-server as restart for post-install" do
   end
   action :nothing
   subscribes :create, resources("template[/etc/quantum/api-paste.ini]"), :immediately
-  subscribes :create, resources("link[#{plugin_cfg_path}]"), :immediately
+  #subscribes :create, resources("link[#{plugin_cfg_path}]"), :immediately
   subscribes :create, resources("template[/etc/quantum/quantum.conf]"), :immediately
 end
 
@@ -287,7 +318,7 @@ ruby_block "mark quantum-agent as restart for post-install" do
     end
   end
   action :nothing
-  subscribes :create, resources("link[#{plugin_cfg_path}]"), :immediately
+  #subscribes :create, resources("link[#{plugin_cfg_path}]"), :immediately
   subscribes :create, resources("template[/etc/quantum/quantum.conf]"), :immediately
 end
 
@@ -295,11 +326,7 @@ ruby_block "restart services for post-install" do
   block do
     services_to_restart.each do |service|
       Chef::Log.info("Restarting #{service}")
-      unless (platform?("ubuntu") && node.platform_version.to_f >= 10.04)
-        %x{/sbin/service #{service} restart}
-      else
-        %x{/sbin/restart #{service}}
-      end
+      %x{/etc/init.d/#{service} restart}
     end
   end
 end

@@ -21,6 +21,9 @@ if node.attribute?(:cookbook) and node[:cookbook] == "nova"
      quantum = node
 end
 
+vlan_start = node[:network][:networks][:nova_fixed][:vlan]
+vlan_end = vlan_start + 2000
+
 case quantum[:quantum][:networking_plugin]
 when "openvswitch"
   quantum_agent = node[:quantum][:platform][:ovs_agent_name]
@@ -71,18 +74,57 @@ if quantum[:quantum][:networking_plugin] == "openvswitch"
 end
 
 if quantum[:quantum][:networking_plugin] == "mellanox"
-  # Download and unpack mellanox tarball
-
-  tarball_url = node[:quantum][:mellanox_tarball]
-  mellanox_filename = tarball_url.split('/').last
-  ethtool_url = node[:quantum][:ethtool_package]
-  ethtool_filename = tarball_url.split('/').last
-
-  remote_file tarball_url do
-    source tarball_url
-    path File.join("tmp",mellanox_filename)
+  # Install OFED driver
+  ofed_url = quantum[:quantum][:ofed_tarball]
+  ofed_filename = ofed_url.split('/').last
+  
+  remote_file ofed_url do
+    source ofed_url
+    path File.join("tmp",ofed_filename)
     action :create_if_missing
   end
+
+  cookbook_file "/etc/grub.d/02_iommu" do
+    source "02_iommu"
+    action :create_if_missing
+  end
+
+  cookbook_file "/etc/modprobe.d/mlnx4_core.conf" do
+    source "mlx4_core.conf"
+    action :create_if_missing
+  end
+
+  ruby_block "unset_reboot" do
+    block do
+      node.set[:reboot] = "complete"
+      node.save
+    end
+    action :create
+  end
+
+  ruby_block "set_reboot" do
+    block do
+      node.set[:reboot] = "require"
+      node.save
+    end
+    action :create
+    not_if { ::File.exists?("/etc/ofed_installed") }
+  end
+
+  bash "install_ofed" do
+    cwd "/tmp"
+    code "tar zxf #{ofed_filename} && cd MLNX_OFED_LINUX-2.0-3.0.0-ubuntu12.04-x86_64 && ./mlnxofedinstall -q --enable-sriov --force-fw-update && touch /etc/ofed_installed"
+    not_if { ::File.exists?("/etc/ofed_installed") }
+  end
+
+  # Download and unpack mellanox tarball
+
+  tarball_url = quantum[:quantum][:mellanox_tarball]
+  mellanox_filename = tarball_url.split('/').last
+  eswitch_url = quantum[:quantum][:eswitch_tarball]
+  eswitch_filename = eswitch_url.split('/').last
+  ethtool_url = quantum[:quantum][:ethtool_package]
+  ethtool_filename = ethtool_url.split('/').last
 
   remote_file ethtool_url do
     source ethtool_url
@@ -90,21 +132,52 @@ if quantum[:quantum][:networking_plugin] == "mellanox"
     action :create_if_missing
   end
 
-  package "unzip"
-
   bash "install_ethtool" do
     cwd "/tmp"
-    code "dpkg -i ethtool_filename"
-    not_if { ::File.exists?("/etc/quantum/plugins/mlnx/mlnx_conf.ini") } #should be fixed to check actual ethtool package
+    code "dpkg -i #{ethtool_filename}"
+    not_if { `dpkg -l | grep ethtool | grep 3.9` } #should be fixed to check actual ethtool package
   end  
+
+  package "unzip"
+  package "python-zmq"
+
+  remote_file tarball_url do
+    source tarball_url
+    path File.join("tmp",mellanox_filename)
+    action :create_if_missing
+  end
+
+  directory "/usr/lib/python2.7/dist-packages/nova/virt/libvirt" do
+    action :create
+    recursive true
+  end
+ 
+  directory "/usr/lib/python2.7/dist-packages/quantum/plugins" do
+    action :create
+    recursive true
+  end
 
   bash "install_mellanox_agent_from_archive" do
     cwd "/tmp"
-    code "unzip #{mellanox_filename} && cd mellanox-quantum-plugin-stable-grizzly && cp -a nova/nova/virt/libvirt/mlnx /usr/lib/python2.7/dist-packages/nova/virt/libvirt && cp -a quantum/quantum/plugins/mlnx /usr/lib/python2.7/dist-packages/quantum/plugins && cp -a daemon /opt/mlnx_daemon && cd .. && rm #{mellanox_filename}"
-    not_if { ::File.exists?("/etc/quantum/plugins/mlnx/mlnx_conf.ini") }
+    code "unzip -o #{mellanox_filename} && cd mellanox-quantum-plugin-stable-grizzly && cp -a nova/nova/virt/libvirt/mlnx /usr/lib/python2.7/dist-packages/nova/virt/libvirt && cp -a quantum/quantum/plugins/mlnx /usr/lib/python2.7/dist-packages/quantum/plugins && cp -a daemon /opt/mlnx_daemon && cd .. && rm -Rf mellanox-quantum-plugin-stable-grizzly && rm #{mellanox_filename} && touch /etc/mlnx_installed"
+    not_if { ::File.exists?("/etc/mlnx_installed") }
   end
 
-  template "/etc/mlnx_daemon/mlnx_daemon.conf" do
+  remote_file eswitch_url do
+    source eswitch_url
+    path File.join("tmp",eswitch_filename)
+    action :create_if_missing
+  end
+
+  bash "install_eswitch" do
+    cwd "/tmp"
+    code "unzip #{eswitch_filename} && cd mellanox-eswitchd-0.4 && python setup.py build && python setup.py install && touch /etc/eswitch_installed"
+    not_if { ::File.exists?("/etc/eswitch_installed") }
+  end  
+
+  directory "/etc/eswitchd"
+  
+  template "/etc/eswitchd/eswitchd.conf" do
     cookbook "quantum"
     source "mlnx_daemon.conf.erb"
     mode "0640"
@@ -113,29 +186,47 @@ if quantum[:quantum][:networking_plugin] == "mellanox"
       :debug => quantum[:quantum][:debug],
       :verbose => quantum[:quantum][:verbose]
     )
+    notifies :run, "execute[start_eswitchd]"
   end
 
-  template "/etc/mlnx_daemon/mlnx_conf.ini" do
+  directory "/etc/quantum/plugins/mlnx"
+
+  template "/etc/quantum/plugins/mlnx/mlnx_conf.ini" do
     cookbook "quantum"
     source "mlnx_conf.ini.erb"
     mode "0640"
     owner node[:quantum][:platform][:user]
     variables(
+      :vlan_start => vlan_start,
+      :vlan_end => vlan_end,
       :sql_connection => quantum[:quantum][:db][:sql_connection]
     )
   end
 
-  # add restart eswitchd
-  bash "start eswitchd" do
-    code "/opt/mlnx_daemon/eswitch_daemon.py"
+  execute "start_eswitchd" do
+    command "/opt/mlnx_daemon/eswitch_daemon.py"
     not_if "ps aux | grep eswitch_daemon"
+    action :nothing
+  end
+
+  link_service eswitchd do
+    bin_name "eswitchd --config-file /etc/eswitchd/eswitchd.conf"
+  end
+
+  service eswitchd do
+    supports :status => true, :restart => true
+    action :enable
+    subscribes :restart, resources("template[/etc/eswitchd/eswitchd.conf]")
+    notifies :restart, resources("service[quantum_agent]")
   end
 
 end
 
 unless quantum[:quantum][:use_gitrepo]
-  package quantum_agent do
-    action :install
+  unless quantum[:quantum][:networking_plugin] == "mellanox"
+    package quantum_agent do
+      action :install
+    end
   end    
 else
   quantum_agent = "quantum-openvswitch-agent"
@@ -271,10 +362,10 @@ when "linuxbridge"
   interface_driver = "quantum.agent.linux.interface.BridgeInterfaceDriver"
   external_network_bridge = ""
 when "mellanox"
-  #plugin_cfg_path = "/etc/quantum/plugins/linuxbridge/linuxbridge_conf.ini"
-  #physnet = (node[:crowbar_wall][:network][:nets][:nova_fixed].first rescue nil)
+  plugin_cfg_path = "/etc/quantum/plugins/mlnx/mlnx_conf.ini"
+  physnet = (node[:crowbar_wall][:network][:nets][:nova_fixed].first rescue nil)
   #interface_driver = "quantum.agent.linux.interface.BridgeInterfaceDriver"
-  #external_network_bridge = ""
+  external_network_bridge = ""
 end
 
 #env_filter = " AND nova_config_environment:nova-config-#{node[:tempest][:nova_instance]}"
@@ -288,7 +379,10 @@ if novas.length > 0
 else
   nova = node
 end
-metadata_host = nova[:fqdn]
+# we use an IP address here, and not nova[:fqdn] because nova-metadata doesn't use SSL
+# and because it listens on this specific IP address only (so we don't want to use a name
+# that could resolve to 127.0.0.1).
+metadata_host = Chef::Recipe::Barclamp::Inventory.get_network_by_type(nova, "admin").address
 metadata_port = "8775"
 if quantum[:quantum][:networking_mode] == 'vlan'
   per_tenant_vlan=true
@@ -325,16 +419,14 @@ admin_username = keystone["keystone"]["admin"]["username"] rescue nil
 admin_password = keystone["keystone"]["admin"]["password"] rescue nil
 Chef::Log.info("Keystone server found at #{keystone_host}")
 
-vlan_start = node[:network][:networks][:nova_fixed][:vlan]
-vlan_end = vlan_start + 2000
 
 if quantum[:quantum][:use_gitrepo] == true
   plugin_cfg_path = File.join("/opt/quantum", plugin_cfg_path)
 end
 
-link plugin_cfg_path do
-  to "/etc/quantum/quantum.conf"
-end
+#link plugin_cfg_path do
+#  to "/etc/quantum/quantum.conf"
+#end
 
 if quantum_server and quantum[:quantum][:api][:protocol] == 'https'
   if quantum[:quantum][:ssl][:generate_certs]
@@ -444,6 +536,12 @@ template "/etc/quantum/quantum.conf" do
     )
 end
 
+if quantum[:quantum][:networking_plugin] == "mellanox"
+  link_service quantum_agent do
+    bin_name "python /usr/lib/python2.7/dist-packages/quantum/plugins/mlnx/agent/eswitch_quantum_agent.py --config-file /etc/quantum/quantum.conf  --config-file /etc/quantum/plugins/mlnx/mlnx_conf.ini"
+  end
+end
+
 if quantum_server
   # no subscribes for :restart; this is handled by the
   # "mark quantum-agent as restart for post-install" ruby_block
@@ -456,7 +554,7 @@ else
   service quantum_agent do
     supports :status => true, :restart => true
     action :enable
-    subscribes :restart, resources("link[#{plugin_cfg_path}]")
+    #subscribes :restart, resources("link[#{plugin_cfg_path}]")
     subscribes :restart, resources("template[/etc/quantum/quantum.conf]")
   end
 end

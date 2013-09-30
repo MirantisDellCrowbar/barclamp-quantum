@@ -39,6 +39,8 @@ rabbit_virtual_host=<%= @rabbit_settings[:vhost] %>
 core_plugin = quantum.plugins.openvswitch.ovs_quantum_plugin.OVSQuantumPluginV2
 <% elsif @networking_plugin == 'linuxbridge' -%>
 core_plugin = quantum.plugins.linuxbridge.lb_quantum_plugin.LinuxBridgePluginV2
+<% elsif @networking_plugin == 'mellanox' -%>
+core_plugin = quantum.plugins.mlnx.mlnx_plugin.MellanoxEswitchPlugin
 <% end -%>
 
 
@@ -284,4 +286,8 @@ network_vlan_ranges = physnet1:<%= @vlan_start %>:<%= @vlan_end %>
 #
 # Default: physical_interface_mappings =
 # Example: physical_interface_mappings = physnet1:eth1
+<% if @networking_plugin == 'mellanox' -%>
+physical_interface_mappings = deafult:eth3
+<% else -%>
 physical_interface_mappings = physnet1:<%=@physnet%>
+<% end -%>

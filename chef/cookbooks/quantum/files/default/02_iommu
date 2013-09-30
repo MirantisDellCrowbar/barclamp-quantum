@@ -1,0 +1,2 @@
+GRUB_CMDLINE_EXTRA="${GRUB_CMDLINE_EXTRA} intel_iommu=on"
+

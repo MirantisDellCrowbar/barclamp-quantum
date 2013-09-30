@@ -19,7 +19,8 @@ tenant_network_type = vlan
 #
 # Default: network_vlan_ranges =
 # Example: network_vlan_ranges = default:1:100
-network_vlan_ranges = default:1:100
+#network_vlan_ranges = default:1:100
+network_vlan_ranges = default:<%= @vlan_start %>:<%= @vlan_end %>
 
 [DATABASE]
 # This line MUST be changed to actually run the plugin.
@@ -28,8 +29,7 @@ network_vlan_ranges = default:1:100
 # Replace 127.0.0.1 above with the IP address of the database used by the
 # main quantum server. (Leave it as is if the database runs on this host.)
 #sql_connection = sqlite://
-#sql_connection = mysql://root:nova@127.0.0.1:3306/quantum
-sql_connection = mysql://quantum:qCTTns9sF1vCimj3lpRs@192.168.124.81/quantum
+sql_connection = <%= @sql_connection %>
 
 # Database reconnection retry times - in event connectivity is lost
 # set to -1 implies an infinite retry count
@@ -47,7 +47,7 @@ reconnect_interval = 2
 #
 # Default: physical_interface_mappings =
 # Example: physical_interface_mappings = default:eth2
-physical_interface_mappings = default:autoeth
+physical_interface_mappings = default:eth3
 # Type of Network Interface to allocate for VM: direct or hosdev according
 # to libvirt terminology.
 # hostdev: this is the traditional method of assigning any generic
@@ -56,10 +56,11 @@ physical_interface_mappings = default:autoeth
 # PCI device (default).
 # bridge:  when using Linux Bridge Plugin on top of eIPoIB device
 # Default: vnic_type = direct
-vnic_type = direct
+vnic_type = hostdev
 
 # (StrOpt) Eswitch daemon end point connection url
 # daemon_endpoint = 'tcp://127.0.0.1:5001'
+daemon_endpoint = 'tcp://127.0.0.1:60001'
 
 # The number of milliseconds the agent will wait for
 # response on request to daemon

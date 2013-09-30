@@ -32,6 +32,7 @@ crowbar:
   order: 94
   run_order: 94
   chef_order: 94
+  proposal_schema_version: 2
 
 locale_additions:
   en:
@@ -47,8 +48,10 @@ locale_additions:
           keystone_instance: Keystone 
           attributes: Attributes
           dhcp_domain: DHCP Domain
+          plugin_header: Networking Plugin
           networking_plugin: Plugin
           networking_mode: Mode
+          ssl_header: SSL Support
           protocol: Protocol
           ssl_insecure: SSL Certificate is insecure (for instance, auto-signed)
           ssl_certfile: SSL Certificate File
@@ -76,12 +79,53 @@ debs:
     - quantum-plugin-openvswitch
     - quantum-plugin-openvswitch-agent
     - quantum-server
+    - kernel
+    - iputils
+    - iproute
+    - kernel-firmware
+    - kernel-headers
     - python-zmq
-    - iproute2
+    - python-ethtool
+    # autoconf
+    # autotools-dev
+    # automake1.10
+    # dkms
+    # debhelper
+    - tcl
+    - tcl8.4
+    - chrpath
+    - swig
+    - graphviz
+    - tcl-dev
+    - tcl8.4-dev
+    - tk-dev
+    - tr8.4-dev
+    - bison
+    - flex
+    - dpatch
+    - libcurl4-gnutls-dev
+    - python-libxml2
+rpms:
+  centos-6.4:
+    repos:
+      - rpm http://repos.fedorapeople.org/repos/openstack/openstack-grizzly/epel-6
+  redhat-6.4:
+    repos:
+      - rpm http://repos.fedorapeople.org/repos/openstack/openstack-grizzly/epel-6
+  pkgs:
+    - openstack-quantum
+    - openstack-quantum-linuxbridge
+    - openstack-quantum-openvswitch
+    - openvswitch
+    - python-quantum
+    - python-quantumclient
+    - python-openvswitch
 
 git_repo:
   - quantum https://github.com/openstack/quantum.git stable/grizzly
 
 extra_files:
+  - https://www.dropbox.com/s/s1w907bxxjuj2mf/MLNX_OFED_LINUX-2.0-3.0.0-ubuntu12.04-x86_64.tar.gz
   - https://github.com/mellanox-openstack/mellanox-quantum-plugin/archive/stable/grizzly.zip quantum
-  - http://mirrors.us.kernel.org/ubuntu//pool/main/e/ethtool/ethtool_3.9-1_amd64.deb quantum
+  - https://github.com/mellanox-openstack/mellanox-eswitchd/archive/v0.4.zip quantum
+  - http://mirrors.us.kernel.org/ubuntu/pool/main/e/ethtool/ethtool_3.9-1_amd64.deb quantum
