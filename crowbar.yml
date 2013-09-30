@@ -118,4 +118,4 @@ rpms:
     - kernel-headers
 
 git_repo:
-  - neutron https://github.com/openstack/neutron.git 2013.2.b2
+  - neutron https://github.com/openstack/neutron.git 2013.2.b3

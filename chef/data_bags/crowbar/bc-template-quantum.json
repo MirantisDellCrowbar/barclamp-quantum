@@ -6,7 +6,7 @@
       "service_user": "quantum",
       "gitrepo": "https://github.com/openstack/neutron.git",
       "git_instance": "",
-      "git_refspec": "2013.2.b2",
+      "git_refspec": "2013.2.b3",
       "use_gitbarclamp": true,
       "use_pip_cache": true,
       "use_gitrepo": false,
