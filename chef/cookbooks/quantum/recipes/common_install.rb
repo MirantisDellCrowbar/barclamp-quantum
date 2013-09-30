@@ -74,153 +74,133 @@ if quantum[:quantum][:networking_plugin] == "openvswitch"
 end
 
 if quantum[:quantum][:networking_plugin] == "mellanox"
-  # Install OFED driver
-  ofed_url = quantum[:quantum][:ofed_tarball]
-  ofed_filename = ofed_url.split('/').last
-  
-  remote_file ofed_url do
-    source ofed_url
-    path File.join("tmp",ofed_filename)
-    action :create_if_missing
-  end
+  if node[:reboot] == "complete"
+    # Download and unpack mellanox tarball
 
-  cookbook_file "/etc/grub.d/02_iommu" do
-    source "02_iommu"
-    action :create_if_missing
-  end
+    tarball_url = quantum[:quantum][:mellanox_tarball]
+    mellanox_filename = tarball_url.split('/').last
+    eswitch_url = quantum[:quantum][:eswitch_tarball]
+    eswitch_filename = eswitch_url.split('/').last
+    ethtool_url = quantum[:quantum][:ethtool_package]
+    ethtool_filename = ethtool_url.split('/').last
 
-  cookbook_file "/etc/modprobe.d/mlnx4_core.conf" do
-    source "mlx4_core.conf"
-    action :create_if_missing
-  end
-
-  ruby_block "unset_reboot" do
-    block do
-      node.set[:reboot] = "complete"
-      node.save
+    remote_file ethtool_url do
+      source ethtool_url
+      path File.join("tmp",ethtool_filename)
+      action :create_if_missing
     end
-    action :create
-  end
 
-  ruby_block "set_reboot" do
-    block do
-      node.set[:reboot] = "require"
-      node.save
+    bash "install_ethtool" do
+      cwd "/tmp"
+      code "dpkg -i #{ethtool_filename}"
+      not_if { `dpkg -l | grep ethtool | grep 3.9` } #should be fixed to check actual ethtool package
+    end  
+
+    package "unzip"
+    package "python-zmq"
+
+    remote_file tarball_url do
+      source tarball_url
+      path File.join("tmp",mellanox_filename)
+      action :create_if_missing
     end
-    action :create
-    not_if { ::File.exists?("/etc/ofed_installed") }
+
+    directory "/usr/lib/python2.7/dist-packages/nova/virt/libvirt" do
+      action :create
+      recursive true
+    end
+   
+    directory "/usr/lib/python2.7/dist-packages/quantum/plugins" do
+      action :create
+      recursive true
+    end
+
+    bash "install_mellanox_agent_from_archive" do
+      cwd "/tmp"
+      code "unzip -o #{mellanox_filename} && cd mellanox-quantum-plugin-stable-grizzly && cp -a nova/nova/virt/libvirt/mlnx /usr/lib/python2.7/dist-packages/nova/virt/libvirt && cp -a quantum/quantum/plugins/mlnx /usr/lib/python2.7/dist-packages/quantum/plugins && cp -a daemon /opt/mlnx_daemon && cd .. && rm -Rf mellanox-quantum-plugin-stable-grizzly && rm #{mellanox_filename} && touch /etc/mlnx_installed"
+      not_if { ::File.exists?("/etc/mlnx_installed") }
+    end
+
+    remote_file eswitch_url do
+      source eswitch_url
+      path File.join("tmp",eswitch_filename)
+      action :create_if_missing
+    end
+
+    bash "install_eswitch" do
+      cwd "/tmp"
+      code "unzip #{eswitch_filename} && cd mellanox-eswitchd-0.4 && python setup.py build && python setup.py install && touch /etc/eswitch_installed"
+      not_if { ::File.exists?("/etc/eswitch_installed") }
+    end  
+
+    directory "/etc/eswitchd"
+    
+    template "/etc/eswitchd/eswitchd.conf" do
+      cookbook "quantum"
+      source "mlnx_daemon.conf.erb"
+      mode "0640"
+      owner node[:quantum][:platform][:user]
+      variables(
+        :debug => quantum[:quantum][:debug],
+        :verbose => quantum[:quantum][:verbose]
+      )
+      notifies :run, "execute[start_eswitchd]"
+    end
+
+    directory "/etc/quantum/plugins/mlnx"
+
+    template "/etc/quantum/plugins/mlnx/mlnx_conf.ini" do
+      cookbook "quantum"
+      source "mlnx_conf.ini.erb"
+      mode "0640"
+      owner node[:quantum][:platform][:user]
+      variables(
+        :vlan_start => vlan_start,
+        :vlan_end => vlan_end,
+        :sql_connection => quantum[:quantum][:db][:sql_connection]
+      )
+    end
+
+    link_service eswitchd do
+      bin_name "eswitchd --config-file /etc/eswitchd/eswitchd.conf"
+    end
+
+    service eswitchd do
+      supports :status => true, :restart => true
+      action :enable
+      subscribes :restart, resources("template[/etc/eswitchd/eswitchd.conf]")
+      notifies :restart, resources("service[quantum_agent]")
+    end
+  else
+    node[:reboot] = "require"
+
+    # Install OFED driver
+    ofed_url = quantum[:quantum][:ofed_tarball]
+    ofed_filename = ofed_url.split('/').last
+    
+    remote_file ofed_url do
+      source ofed_url
+      path File.join("tmp",ofed_filename)
+      action :create_if_missing
+    end
+
+    cookbook_file "/etc/grub.d/02_iommu" do
+      source "02_iommu"
+      action :create_if_missing
+    end
+
+    cookbook_file "/etc/modprobe.d/mlnx4_core.conf" do
+      source "mlx4_core.conf"
+      action :create_if_missing
+    end
+
+    bash "install_ofed" do
+      cwd "/tmp"
+      code "tar zxf #{ofed_filename} && cd MLNX_OFED_LINUX-2.0-3.0.0-ubuntu12.04-x86_64 && ./mlnxofedinstall -q --enable-sriov --force-fw-update && touch /etc/ofed_installed"
+      not_if { ::File.exists?("/etc/ofed_installed") }
+    end
   end
-
-  bash "install_ofed" do
-    cwd "/tmp"
-    code "tar zxf #{ofed_filename} && cd MLNX_OFED_LINUX-2.0-3.0.0-ubuntu12.04-x86_64 && ./mlnxofedinstall -q --enable-sriov --force-fw-update && touch /etc/ofed_installed"
-    not_if { ::File.exists?("/etc/ofed_installed") }
-  end
-
-  # Download and unpack mellanox tarball
-
-  tarball_url = quantum[:quantum][:mellanox_tarball]
-  mellanox_filename = tarball_url.split('/').last
-  eswitch_url = quantum[:quantum][:eswitch_tarball]
-  eswitch_filename = eswitch_url.split('/').last
-  ethtool_url = quantum[:quantum][:ethtool_package]
-  ethtool_filename = ethtool_url.split('/').last
-
-  remote_file ethtool_url do
-    source ethtool_url
-    path File.join("tmp",ethtool_filename)
-    action :create_if_missing
-  end
-
-  bash "install_ethtool" do
-    cwd "/tmp"
-    code "dpkg -i #{ethtool_filename}"
-    not_if { `dpkg -l | grep ethtool | grep 3.9` } #should be fixed to check actual ethtool package
-  end  
-
-  package "unzip"
-  package "python-zmq"
-
-  remote_file tarball_url do
-    source tarball_url
-    path File.join("tmp",mellanox_filename)
-    action :create_if_missing
-  end
-
-  directory "/usr/lib/python2.7/dist-packages/nova/virt/libvirt" do
-    action :create
-    recursive true
-  end
- 
-  directory "/usr/lib/python2.7/dist-packages/quantum/plugins" do
-    action :create
-    recursive true
-  end
-
-  bash "install_mellanox_agent_from_archive" do
-    cwd "/tmp"
-    code "unzip -o #{mellanox_filename} && cd mellanox-quantum-plugin-stable-grizzly && cp -a nova/nova/virt/libvirt/mlnx /usr/lib/python2.7/dist-packages/nova/virt/libvirt && cp -a quantum/quantum/plugins/mlnx /usr/lib/python2.7/dist-packages/quantum/plugins && cp -a daemon /opt/mlnx_daemon && cd .. && rm -Rf mellanox-quantum-plugin-stable-grizzly && rm #{mellanox_filename} && touch /etc/mlnx_installed"
-    not_if { ::File.exists?("/etc/mlnx_installed") }
-  end
-
-  remote_file eswitch_url do
-    source eswitch_url
-    path File.join("tmp",eswitch_filename)
-    action :create_if_missing
-  end
-
-  bash "install_eswitch" do
-    cwd "/tmp"
-    code "unzip #{eswitch_filename} && cd mellanox-eswitchd-0.4 && python setup.py build && python setup.py install && touch /etc/eswitch_installed"
-    not_if { ::File.exists?("/etc/eswitch_installed") }
-  end  
-
-  directory "/etc/eswitchd"
-  
-  template "/etc/eswitchd/eswitchd.conf" do
-    cookbook "quantum"
-    source "mlnx_daemon.conf.erb"
-    mode "0640"
-    owner node[:quantum][:platform][:user]
-    variables(
-      :debug => quantum[:quantum][:debug],
-      :verbose => quantum[:quantum][:verbose]
-    )
-    notifies :run, "execute[start_eswitchd]"
-  end
-
-  directory "/etc/quantum/plugins/mlnx"
-
-  template "/etc/quantum/plugins/mlnx/mlnx_conf.ini" do
-    cookbook "quantum"
-    source "mlnx_conf.ini.erb"
-    mode "0640"
-    owner node[:quantum][:platform][:user]
-    variables(
-      :vlan_start => vlan_start,
-      :vlan_end => vlan_end,
-      :sql_connection => quantum[:quantum][:db][:sql_connection]
-    )
-  end
-
-  execute "start_eswitchd" do
-    command "/opt/mlnx_daemon/eswitch_daemon.py"
-    not_if "ps aux | grep eswitch_daemon"
-    action :nothing
-  end
-
-  link_service eswitchd do
-    bin_name "eswitchd --config-file /etc/eswitchd/eswitchd.conf"
-  end
-
-  service eswitchd do
-    supports :status => true, :restart => true
-    action :enable
-    subscribes :restart, resources("template[/etc/eswitchd/eswitchd.conf]")
-    notifies :restart, resources("service[quantum_agent]")
-  end
-
-end
+end  
 
 unless quantum[:quantum][:use_gitrepo]
   unless quantum[:quantum][:networking_plugin] == "mellanox"
