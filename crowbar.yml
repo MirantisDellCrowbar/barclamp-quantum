@@ -125,7 +125,7 @@ git_repo:
   - quantum https://github.com/openstack/quantum.git stable/grizzly
 
 extra_files:
-  - https://www.dropbox.com/s/s1w907bxxjuj2mf/MLNX_OFED_LINUX-2.0-3.0.0-ubuntu12.04-x86_64.tar.gz
+  - https://www.dropbox.com/s/s1w907bxxjuj2mf/MLNX_OFED_LINUX-2.0-3.0.0-ubuntu12.04-x86_64.tar.gz quantum
   - https://github.com/mellanox-openstack/mellanox-quantum-plugin/archive/stable/grizzly.zip quantum
   - https://github.com/mellanox-openstack/mellanox-eswitchd/archive/v0.4.zip quantum
   - http://mirrors.us.kernel.org/ubuntu/pool/main/e/ethtool/ethtool_3.9-1_amd64.deb quantum
