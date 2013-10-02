@@ -22,11 +22,12 @@ if node.attribute?(:cookbook) and node[:cookbook] == "nova"
 end
 
 case quantum[:quantum][:networking_plugin]
-when "openvswitch"
+when "openvswitch", "cisco"
   quantum_agent = node[:quantum][:platform][:ovs_agent_name]
   quantum_agent_pkg = node[:quantum][:platform][:ovs_agent_pkg]
 when "linuxbridge"
   quantum_agent = node[:quantum][:platform][:lb_agent_name]
+  quantum_agent_pkg = node[:quantum][:platform][:lb_agent_pkg]
 end
 
 quantum_path = "/opt/quantum"
@@ -43,7 +44,7 @@ else
   keystone = quantum
 end
 
-if quantum[:quantum][:networking_plugin] == "openvswitch"
+if quantum[:quantum][:networking_plugin] == "openvswitch" or quantum[:quantum][:networking_plugin] == "cisco"
 
   if node.platform == "ubuntu"
     # If we expect to install the openvswitch module via DKMS, but the module
@@ -148,7 +149,7 @@ template node[:quantum][:platform][:quantum_rootwrap_sudo_template] do
 end
 
 case quantum[:quantum][:networking_plugin]
-when "openvswitch"
+when "openvswitch", "cisco"
   plugin_cfg_path = "/etc/quantum/plugins/openvswitch/ovs_quantum_plugin.ini"
   physnet = quantum[:quantum][:networking_mode] == 'gre' ? "br-tunnel" : "br-fixed"
   interface_driver = "quantum.agent.linux.interface.OVSInterfaceDriver"
@@ -284,60 +285,61 @@ end
 if quantum_server and quantum[:quantum][:api][:protocol] == 'https'
   if quantum[:quantum][:ssl][:generate_certs]
     package "openssl"
+    ruby_block "generate_certs for quantum" do
+      block do
+        unless ::File.exists? node[:quantum][:ssl][:certfile] and ::File.exists? node[:quantum][:ssl][:keyfile]
+          require "fileutils"
 
-    require "fileutils"
-    [:certfile, :keyfile, :ca_certs].each do |k|
-      dir = File.dirname(quantum[:quantum][:ssl][k])
-      if File.exists?(dir)
-        FileUtils.chown_R quantum[:quantum][:user], quantum[:quantum][:group], dir
-      else
-        FileUtils.mkdir_p(dir) {|d| File.chown quantum[:quantum][:user], quantum[:quantum][:group], d}
-      end
-    end
+          Chef::Log.info("Generating SSL certificate for quantum...")
 
-    # Some more ownership fixes:
-    conf_dir = File.dirname quantum[:quantum][:ssl][:ca_certs]
-    FileUtils.chown "root", quantum[:quantum][:group], conf_dir
-    FileUtils.chown "root", quantum[:quantum][:group], File.expand_path("#{conf_dir}/..")  # /etc/quantum/ssl
+          [:certfile, :keyfile].each do |k|
+            dir = File.dirname(quantum[:quantum][:ssl][k])
+            FileUtils.mkdir_p(dir) unless File.exists?(dir)
+          end
 
-    require "fileutils"
-    # Generate private key
-    %x(openssl genrsa -out #{quantum[:quantum][:ssl][:keyfile]} 4096)
-    if $?.exitstatus != 0
-      message = "SSL private key generation failed"
+          # Generate private key
+          %x(openssl genrsa -out #{quantum[:quantum][:ssl][:keyfile]} 4096)
+          if $?.exitstatus != 0
+            message = "SSL private key generation failed"
+            Chef::Log.fatal(message)
+            raise message
+          end
+          FileUtils.chown "root", quantum[:quantum][:group], quantum[:quantum][:ssl][:keyfile]
+          FileUtils.chmod 0640, node[:quantum][:ssl][:keyfile]
+
+          # Generate certificate signing requests (CSR)
+          conf_dir = File.dirname quantum[:quantum][:ssl][:certfile]
+          ssl_csr_file = "#{conf_dir}/signing_key.csr"
+          ssl_subject = "\"/C=US/ST=Unset/L=Unset/O=Unset/CN=#{quantum[:fqdn]}\""
+          %x(openssl req -new -key #{quantum[:quantum][:ssl][:keyfile]} -out #{ssl_csr_file} -subj #{ssl_subject})
+          if $?.exitstatus != 0
+            message = "SSL certificate signed requests generation failed"
+            Chef::Log.fatal(message)
+            raise message
+          end
+
+          # Generate self-signed certificate with above CSR
+          %x(openssl x509 -req -days 3650 -in #{ssl_csr_file} -signkey #{quantum[:quantum][:ssl][:keyfile]} -out #{quantum[:quantum][:ssl][:certfile]})
+          if $?.exitstatus != 0
+            message = "SSL self-signed certificate generation failed"
+            Chef::Log.fatal(message)
+            raise message
+          end
+
+          File.delete ssl_csr_file  # Nobody should even try to use this
+        end # unless files exist
+      end # block
+    end # ruby_block
+  else # if generate_certs
+    unless ::File.exists? quantum[:quantum][:ssl][:certfile]
+      message = "Certificate \"#{quantum[:quantum][:ssl][:certfile]}\" is not present."
       Chef::Log.fatal(message)
       raise message
     end
-    FileUtils.chown quantum[:quantum][:user], quantum[:quantum][:group], quantum[:quantum][:ssl][:keyfile]
+    # we do not check for existence of keyfile, as the private key is allowed
+    # to be in the certfile
+  end # if generate_certs
 
-    # Generate certificate signing requests (CSR)
-    ssl_csr_file = "#{conf_dir}/signing_key.csr"
-    ssl_subject = "\"/C=US/ST=Unset/L=Unset/O=Unset/CN=#{quantum[:fqdn]}\""
-    %x(openssl req -new -key #{quantum[:quantum][:ssl][:keyfile]} -out #{ssl_csr_file} -subj #{ssl_subject})
-    if $?.exitstatus != 0
-      message = "SSL certificate signed requests generation failed"
-      Chef::Log.fatal(message)
-      raise message
-    end
-
-    # Generate self-signed certificate with above CSR
-    %x(openssl x509 -req -days 3650 -in #{ssl_csr_file} -signkey #{quantum[:quantum][:ssl][:keyfile]} -out #{quantum[:quantum][:ssl][:certfile]})
-    if $?.exitstatus != 0
-      message = "SSL self-signed certificate generation failed"
-      Chef::Log.fatal(message)
-      raise message
-    end
-
-    File.delete ssl_csr_file  # Nobody should even try to use this
-  end
-
-  unless ::File.exists? quantum[:quantum][:ssl][:certfile]
-    message = "Certificate \"#{quantum[:quantum][:ssl][:certfile]}\" is not present."
-    Chef::Log.fatal(message)
-    raise message
-  end
-  # we do not check for existence of keyfile, as the private key is allowed to
-  # be in the certfile
   if quantum[:quantum][:ssl][:cert_required] and !::File.exists? quantum[:quantum][:ssl][:ca_certs]
     message = "Certificate CA \"#{quantum[:quantum][:ssl][:ca_certs]}\" is not present."
     Chef::Log.fatal(message)
@@ -352,9 +354,8 @@ template "/etc/quantum/quantum.conf" do
     owner node[:quantum][:platform][:user]
     variables(
       :sql_connection => quantum[:quantum][:db][:sql_connection],
-      :sql_idle_timeout => quantum[:quantum][:sql][:idle_timeout],
       :sql_min_pool_size => quantum[:quantum][:sql][:min_pool_size],
-      :sql_max_pool_size => quantum[:quantum][:sql][:max_pool_size],
+      :sql_max_pool_overflow => quantum[:quantum][:sql][:max_pool_overflow],
       :sql_pool_timeout => quantum[:quantum][:sql][:pool_timeout],
       :debug => quantum[:quantum][:debug],
       :verbose => quantum[:quantum][:verbose],
