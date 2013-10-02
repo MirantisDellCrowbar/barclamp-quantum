@@ -134,18 +134,6 @@ if quantum[:quantum][:networking_plugin] == "mellanox"
     end  
 
     directory "/etc/eswitchd"
-    
-    template "/etc/eswitchd/eswitchd.conf" do
-      cookbook "quantum"
-      source "mlnx_daemon.conf.erb"
-      mode "0640"
-      owner node[:quantum][:platform][:user]
-      variables(
-        :debug => quantum[:quantum][:debug],
-        :verbose => quantum[:quantum][:verbose]
-      )
-      notifies :run, "execute[start_eswitchd]"
-    end
 
     directory "/etc/quantum/plugins/mlnx"
 
@@ -161,15 +149,27 @@ if quantum[:quantum][:networking_plugin] == "mellanox"
       )
     end
 
-    link_service eswitchd do
+    link_service "eswitchd" do
       bin_name "eswitchd --config-file /etc/eswitchd/eswitchd.conf"
     end
 
-    service eswitchd do
+    service "eswitchd" do
       supports :status => true, :restart => true
       action :enable
-      subscribes :restart, resources("template[/etc/eswitchd/eswitchd.conf]")
-      notifies :restart, resources("service[quantum_agent]")
+      #subscribes :restart, resources("template[/etc/eswitchd/eswitchd.conf]")
+      #notifies :restart, "service[quantum-plugin-mellanox-agent]"
+    end
+
+    template "/etc/eswitchd/eswitchd.conf" do
+      cookbook "quantum"
+      source "mlnx_daemon.conf.erb"
+      mode "0640"
+      owner node[:quantum][:platform][:user]
+      variables(
+        :debug => quantum[:quantum][:debug],
+        :verbose => quantum[:quantum][:verbose]
+      )
+      notifies :restart, "service[eswitchd]"
     end
   else
     node[:reboot] = "require"
@@ -194,12 +194,20 @@ if quantum[:quantum][:networking_plugin] == "mellanox"
       action :create_if_missing
     end
 
+    package "linux-headers-generic"
+    package "quantum-common" # fix dependencies
+    
     bash "install_ofed" do
       cwd "/tmp"
       code "tar zxf #{ofed_filename} && cd MLNX_OFED_LINUX-2.0-3.0.0-ubuntu12.04-x86_64 && ./mlnxofedinstall -q --enable-sriov --force-fw-update && touch /etc/ofed_installed"
       not_if { ::File.exists?("/etc/ofed_installed") }
     end
   end
+
+  if system("lsmod | grep mlx4_en")
+    node[:reboot] = "complete"
+  end
+
 end  
 
 unless quantum[:quantum][:use_gitrepo]

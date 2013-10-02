@@ -44,7 +44,7 @@ unless node[:quantum][:use_gitrepo]
     notifies :restart, "service[#{node[:quantum][:platform][:service_name]}]"
   end
   template "/etc/default/quantum-server" do
-    source "ubuntu-quantum-quantum-server.erb"
+    source "ubuntu.default.quantum-server.erb"
     owner "root"
     group "root"
     mode 0640

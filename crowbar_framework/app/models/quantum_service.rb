@@ -148,10 +148,18 @@ class QuantumService < ServiceObject
       admin_ip = nodes[0].get_network_by_type("admin")["address"]
       web_port = nodes[0]["provisioner"]["web_port"]
       # substitute the admin web portal
-      role.default_attributes["quantum"]["ofed_tarball"].gsub!("<ADMINWEB>", "#{admin_ip}:#{web_port}")
-      role.default_attributes["quantum"]["eswitch_tarball"].gsub!("<ADMINWEB>", "#{admin_ip}:#{web_port}")
-      role.default_attributes["quantum"]["mellanox_tarball"].gsub!("<ADMINWEB>", "#{admin_ip}:#{web_port}")
-      role.default_attributes["quantum"]["ethtool_package"].gsub!("<ADMINWEB>", "#{admin_ip}:#{web_port}")
+#      role.default_attributes["quantum"]["ofed_tarball"].gsub!("<ADMINWEB>", "#{admin_ip}:#{web_port}")
+#      role.default_attributes["quantum"]["eswitch_tarball"].gsub!("<ADMINWEB>", "#{admin_ip}:#{web_port}")
+#      role.default_attributes["quantum"]["mellanox_tarball"].gsub!("<ADMINWEB>", "#{admin_ip}:#{web_port}")
+#      role.default_attributes["quantum"]["ethtool_package"].gsub!("<ADMINWEB>", "#{admin_ip}:#{web_port}")
+      ofed_tarball_path = role.default_attributes["quantum"]["ofed_tarball"].gsub("<ADMINWEB>", "#{admin_ip}:#{web_port}")
+      eswitch_tarball_path = role.default_attributes["quantum"]["eswitch_tarball"].gsub("<ADMINWEB>", "#{admin_ip}:#{web_port}")
+      mellanox_tarball_path = role.default_attributes["quantum"]["mellanox_tarball"].gsub("<ADMINWEB>", "#{admin_ip}:#{web_port}")
+      ethtool_package_path = role.default_attributes["quantum"]["ethtool_package"].gsub("<ADMINWEB>", "#{admin_ip}:#{web_port}")
+      role.default_attributes["quantum"]["ofed_tarball"] = ofed_tarball_path
+      role.default_attributes["quantum"]["eswitch_tarball"] = eswitch_tarball_path
+      role.default_attributes["quantum"]["mellanox_tarball"] = mellanox_tarball_path
+      role.default_attributes["quantum"]["ethtool_package"] = ethtool_package_path
     end
 
     role.save

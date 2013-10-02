@@ -99,6 +99,8 @@ debs:
     - tcl-dev
     - tcl8.4-dev
     - tk-dev
+    - tk8.4-dev
+    # tk8.5-dev
     - tr8.4-dev
     - bison
     - flex
