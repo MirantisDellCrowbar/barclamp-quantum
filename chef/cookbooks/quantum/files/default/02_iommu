@@ -1,2 +1,3 @@
-GRUB_CMDLINE_EXTRA="${GRUB_CMDLINE_EXTRA} intel_iommu=on"
+export GRUB_CMDLINE_EXTRA="${GRUB_CMDLINE_EXTRA} intel_iommu=on"
+. /etc/grub.d/10_linux
 

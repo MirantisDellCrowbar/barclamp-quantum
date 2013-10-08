@@ -90,6 +90,12 @@ if quantum[:quantum][:networking_plugin] == "mellanox"
     source "02_iommu"
     action :create_if_missing
   end
+  
+  execute "update-grub-mlnx" do
+   command "update-grub"
+   action :nothing
+  end
+
 
   cookbook_file "/etc/modprobe.d/mlnx4_core.conf" do
     source "mlx4_core.conf"
@@ -114,6 +120,7 @@ if quantum[:quantum][:networking_plugin] == "mellanox"
     end
     action :create
     not_if "lsmod | grep mlx4_en"
+    notifies :run, "execute[update-grub-mlnx]", :immediately
   end
 
   bash "install_ofed" do
