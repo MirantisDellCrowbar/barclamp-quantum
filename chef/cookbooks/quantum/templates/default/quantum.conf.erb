@@ -36,13 +36,12 @@ rabbit_virtual_host=<%= @rabbit_settings[:vhost] %>
 <% end -%>
 
 <% if @networking_plugin == 'cisco' -%>
-core_plugin = quantum.plugins.cisco.network_plugin.PluginV2
+core_plugin = neutron.plugins.cisco.network_plugin.PluginV2
 <% elsif @networking_plugin == 'openvswitch' -%>
-core_plugin = quantum.plugins.openvswitch.ovs_quantum_plugin.OVSQuantumPluginV2
+core_plugin = neutron.plugins.openvswitch.ovs_neutron_plugin.OVSNeutronPluginV2
 <% elsif @networking_plugin == 'linuxbridge' -%>
-core_plugin = quantum.plugins.linuxbridge.lb_quantum_plugin.LinuxBridgePluginV2
+core_plugin = neutron.plugins.linuxbridge.lb_neutron_plugin.LinuxBridgePluginV2
 <% end -%>
-
 
 #================dhcp agent====================
 state_path = /var/lib/quantum/

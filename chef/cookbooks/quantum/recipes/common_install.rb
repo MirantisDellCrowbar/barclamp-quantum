@@ -106,22 +106,25 @@ unless quantum[:quantum][:use_gitrepo]
   end 
 
 else
+
   quantum_agent = "quantum-openvswitch-agent"
   pfs_and_install_deps "quantum" do
     cookbook "quantum"
     cnode quantum
     virtualenv venv_path
     path quantum_path
-    wrap_bins [ "quantum", "quantum-rootwrap" ]
-  end
-  pfs_and_install_deps "keystone" do
-    cookbook "keystone"
-    cnode keystone
-    path File.join(quantum_path,"keystone")
-    virtualenv venv_path
+    wrap_bins [ "quantum", "quantum-rootwrap", "neutron", "neutron-rootwrap" ]
   end
 
   create_user_and_dirs("quantum")
+
+  # TODO(eshurmin@mirantis.com): temporary do symlinks for correcting start services
+  link "/etc/neutron" do
+    to "/etc/quantum"
+  end
+  link "/etc/quantum/neutron.conf" do
+    to "/etc/quantum/quantum.conf"
+  end
 
   link_service quantum_agent do
     virtualenv venv_path
@@ -177,9 +180,9 @@ end
 node[:quantum] ||= Mash.new
 if not node[:quantum].has_key?("rootwrap")
   unless quantum[:quantum][:use_gitrepo]
-    node.set[:quantum][:rootwrap] = "/usr/bin/quantum-rootwrap"
+    node.set[:quantum][:rootwrap] = "/usr/bin/neutron-rootwrap"
   else
-    node.set[:quantum][:rootwrap] = "/usr/local/bin/quantum-rootwrap"
+    node.set[:quantum][:rootwrap] = "/usr/local/bin/neutron-rootwrap"
   end
 end
 
@@ -188,20 +191,20 @@ ruby_block "Find quantum rootwrap" do
   block do
     found = false
     ENV['PATH'].split(':').each do |p|
-      f = File.join(p,"quantum-rootwrap")
+      f = File.join(p,"neutron-rootwrap")
       next unless File.executable?(f)
       node.set[:quantum][:rootwrap] = f
       node.save
       found = true
       break
     end
-    raise("Could not find quantum rootwrap binary!") unless found
+    raise("Could not find neutron rootwrap binary!") unless found
   end
 end
 
 template node[:quantum][:platform][:quantum_rootwrap_sudo_template] do
   cookbook "quantum"
-  source "quantum-rootwrap.erb"
+  source "neutron-rootwrap.erb"
   mode 0440
   variables(:user => node[:quantum][:platform][:user],
             :binary => node[:quantum][:rootwrap])
