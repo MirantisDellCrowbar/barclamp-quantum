@@ -14,6 +14,9 @@
       "rabbitmq_instance": "none",
       "keystone_instance": "none",
       "pfs_deps": [
+        "pip://setuptools-git",
+        "pip://distribute>=0.6.28",
+        "pip://MySQL-python",
         "pip://pyudev"
       ],
       "debug": false,
