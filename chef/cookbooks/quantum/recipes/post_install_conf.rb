@@ -78,7 +78,7 @@ if node[:platform] == "suse" or node[:quantum][:use_gitrepo]
   quantum_args = "#{quantum_args} --endpoint-type internalURL"
   quantum_args = "#{quantum_args} --insecure" if ssl_insecure
 end
-quantum_cmd = "quantum #{quantum_args}"
+quantum_cmd = "neutron #{quantum_args}"
 
 case node[:quantum][:networking_plugin]
 when "openvswitch"

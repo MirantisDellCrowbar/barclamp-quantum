@@ -110,10 +110,11 @@ else
   quantum_agent = "quantum-openvswitch-agent"
   pfs_and_install_deps "quantum" do
     cookbook "quantum"
+    repo "neutron"
     cnode quantum
     virtualenv venv_path
     path quantum_path
-    wrap_bins [ "quantum", "quantum-rootwrap", "neutron", "neutron-rootwrap" ]
+    wrap_bins [ "quantum-rootwrap", "neutron", "neutron-rootwrap" ]
   end
 
   create_user_and_dirs("quantum")
